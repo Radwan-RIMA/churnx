@@ -21,8 +21,7 @@ import shap
 import joblib
 import os
 import io
-from sklearn.metrics import brier_score_loss
-from sklearn.calibration import calibration_curve
+
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -601,7 +600,7 @@ def main_app():
         page = st.radio(
             "Navigation",
             ["🏠 Dashboard", "🔍 Customer Lookup", "🎛 What-If Simulator",
-             "📊 Model Diagnostics", "📤 Export Report"],
+             "📤 Export Report"],
             label_visibility="collapsed"
         )
         st.markdown("---")
@@ -790,6 +789,29 @@ for every customer and explain the key risk drivers.
                         'Churn Probability', 'Risk Level']
         display_cols = [c for c in display_cols if c in filtered.columns]
         st.dataframe(filtered[display_cols].reset_index(drop=True), use_container_width=True, height=400)
+
+        # Retention action recommendations
+        if df_results is not None:
+            st.markdown("---")
+            st.markdown('<div class="section-header"><div class="dot" style="background:#10b981"></div><span>Recommended Retention Actions</span></div>', unsafe_allow_html=True)
+            st.caption("Top churn drivers and suggested interventions — based on SHAP feature importance")
+
+            action_path = os.path.join(REPORTS_DIR, 'retention_action_table.csv')
+            if os.path.exists(action_path):
+                st.dataframe(pd.read_csv(action_path), use_container_width=True)
+            else:
+                actions = pd.DataFrame({
+                    'SHAP Rank': [1, 2, 3, 4, 5, 6],
+                    'Feature':   ['charge_per_tenure', 'Contract (month-to-month)', 'InternetService (fiber)',
+                                  'MonthlyCharges', 'tenure', 'PaymentMethod (e-check)'],
+                    'Signal':    ['High cost/tenure ratio → high churn', 'No commitment → easy to leave',
+                                  'Service quality issues', 'High bill → perceived poor value',
+                                  'New customers most vulnerable', 'Proxy for low commitment'],
+                    'Recommended Action': ['Loyalty discount at month 3 & 6', 'Offer 3 months free on annual upgrade',
+                                           'Proactive quality check in months 1–6', 'Flag >$80/mo for retention call',
+                                           'Onboarding programme months 1–12', 'Incentivise auto-pay switch'],
+                })
+                st.dataframe(actions, use_container_width=True, hide_index=True)
 
     # ══════════════════════════════════════════════════════════════════════════
     # PAGE: Customer Lookup
@@ -990,110 +1012,6 @@ for every customer and explain the key risk drivers.
             plt.tight_layout()
             st.pyplot(plt.gcf())
             plt.close()
-
-    # ══════════════════════════════════════════════════════════════════════════
-    # PAGE: Model Diagnostics
-    # ══════════════════════════════════════════════════════════════════════════
-    elif page == "📊 Model Diagnostics":
-        st.title("Model Diagnostics")
-        st.markdown('<div class="page-subtitle">Calibration, evaluation metrics, and feature engineering validation</div>', unsafe_allow_html=True)
-
-        # Calibration
-        st.markdown("### Probability Calibration")
-        st.caption("A well-calibrated model: when it says 70%, ~70% of those customers actually churn.")
-
-        if df_results is not None and df_raw is not None and 'Churn' in df_raw.columns:
-            y_true = (df_raw['Churn'] == 'Yes').astype(int)
-            brier  = brier_score_loss(y_true, probs)
-            fraction_pos, mean_pred = calibration_curve(y_true, probs, n_bins=10)
-
-            col1, col2 = st.columns([2, 1])
-            with col1:
-                fig_cal, ax = plt.subplots(figsize=(7, 5))
-                ax.plot([0,1],[0,1],'--', color="#475569", linewidth=1, label="Perfect calibration")
-                ax.plot(mean_pred, fraction_pos, 'o-', color="#3b82f6", linewidth=2.5,
-                        markersize=8, label=f"XGBoost (Brier={brier:.4f})")
-                ax.set_xlabel("Mean Predicted Probability")
-                ax.set_ylabel("Fraction of Actual Positives")
-                ax.set_title("Reliability Diagram")
-                ax.legend()
-                ax.set_xlim(0,1); ax.set_ylim(0,1)
-                ax.grid(True, alpha=0.3)
-                fig_cal.patch.set_facecolor("#0d1525")
-                st.pyplot(fig_cal)
-                plt.close()
-
-            with col2:
-                quality = 'Good ✓' if brier < 0.15 else 'Moderate ⚠️' if brier < 0.20 else 'Poor ✗'
-                st.metric("Brier Score",        f"{brier:.4f}")
-                st.metric("Calibration Quality", quality)
-                st.markdown("""
-**Guide:**
-- < 0.10 → Excellent
-- < 0.15 → Good
-- < 0.20 → Moderate
-- ≥ 0.20 → Poor
-""")
-        else:
-            st.info("Upload a CSV with a 'Churn' column for live calibration.")
-            st.markdown("Development Brier score on test set: **< 0.15** (Good calibration).")
-
-        st.markdown("---")
-
-        # Model results
-        st.markdown("### Model Evaluation Results")
-        results_path = os.path.join(REPORTS_DIR, 'model_results.csv')
-        if os.path.exists(results_path):
-            st.dataframe(pd.read_csv(results_path), use_container_width=True)
-        else:
-            st.info("Run Notebook 2 to generate model results.")
-            results_manual = pd.DataFrame({
-                'Model':     ['Logistic Regression', 'Random Forest', 'XGBoost (tuned)'],
-                'ROC-AUC':   ['83.43%', '~82%', '80.45%'],
-                'Accuracy':  ['78.42%', '~79%', '76.37%'],
-                'Recall':    ['65.51%', '~58%', '51.87% → 98.4% @ t=0.05'],
-                'F1':        ['61.71%', '~59%', '53.81%'],
-                'Selected':  ['', '', '✓ (SHAP + non-linear)'],
-            })
-            st.dataframe(results_manual, use_container_width=True, hide_index=True)
-
-        st.markdown("---")
-
-        # Ablation
-        st.markdown("### Feature Ablation Study")
-        ablation_path = os.path.join(REPORTS_DIR, 'ablation_results.csv')
-        if os.path.exists(ablation_path):
-            st.dataframe(pd.read_csv(ablation_path), use_container_width=True)
-        else:
-            st.info("Run Notebook 1 to generate ablation results.")
-            abl = pd.DataFrame({
-                'Feature':         ['charge_per_tenure', 'new_and_monthly', 'service_count'],
-                'AUC Without':     ['Baseline − highest delta', 'Baseline − positive delta', 'Baseline − marginal delta'],
-                'Decision':        ['✓ Keep', '✓ Keep', '✓ Keep'],
-                'SHAP Rank':       ['#1', '#3 (via contract)', '#5 (via service cols)'],
-            })
-            st.dataframe(abl, use_container_width=True, hide_index=True)
-
-        st.markdown("---")
-
-        # Retention actions
-        st.markdown("### Retention Action Recommendations")
-        action_path = os.path.join(REPORTS_DIR, 'retention_action_table.csv')
-        if os.path.exists(action_path):
-            st.dataframe(pd.read_csv(action_path), use_container_width=True)
-        else:
-            actions = pd.DataFrame({
-                'SHAP Rank': [1, 2, 3, 4, 5, 6],
-                'Feature':   ['charge_per_tenure', 'Contract (month-to-month)', 'InternetService (fiber)',
-                              'MonthlyCharges', 'tenure', 'PaymentMethod (e-check)'],
-                'Signal':    ['High cost/tenure ratio → high churn', 'No commitment → easy to leave',
-                              'Service quality issues', 'High bill → perceived poor value',
-                              'New customers most vulnerable', 'Proxy for low commitment'],
-                'Action':    ['Loyalty discount at month 3 & 6', 'Offer 3 months free on annual upgrade',
-                              'Proactive quality check in months 1–6', 'Flag >$80/mo for retention call',
-                              'Onboarding programme months 1–12', 'Incentivise auto-pay switch'],
-            })
-            st.dataframe(actions, use_container_width=True, hide_index=True)
 
     # ══════════════════════════════════════════════════════════════════════════
     # PAGE: Export Report

@@ -2,5 +2,5 @@ Model,Threshold,Accuracy,F1 Score,ROC-AUC,Precision,Recall,Brier
 Logistic Regression,0.5,78.42,61.71,83.43,58.33,65.51,0.1467
 Random Forest,0.5,75.87,33.07,79.44,62.69,22.46,0.1634
 XGBoost (default),0.5,71.75,50.25,73.93,47.18,53.74,0.2012
-"XGBoost (tuned, default 0.50)",0.5,76.15,51.3,79.03,56.01,47.33,0.1576
-"XGBoost (tuned, cost-opt 0.03)",0.028044091537594795,40.17,46.61,79.03,30.54,98.4,0.1576
+"XGBoost (tuned, default 0.50)",0.5,77.22,54.08,80.66,58.15,50.53,0.1508
+"XGBoost (tuned, cost-opt 0.04)",0.04053625836968422,46.06,49.2,80.66,32.8,98.4,0.1508
