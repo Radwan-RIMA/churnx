@@ -7,3 +7,7 @@ data/processed/*.csv
 .env
 venv/
 .venv/
+
+# Secrets — never commit real API keys
+.streamlit/secrets.toml
+secrets.toml
