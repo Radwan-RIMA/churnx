@@ -364,7 +364,7 @@ def main_app():
 
         st.markdown("### Customer Feature Values")
         if df_raw is not None:
-            st.dataframe(df_raw.iloc[idx].to_frame(name='Value'), use_container_width=True)
+            st.dataframe(df_raw.iloc[idx].astype(str).to_frame(name='Value'), use_container_width=True)
 
     # ══════════════════════════════════════════════════════════════════════════
     # PAGE: Retention Copilot
