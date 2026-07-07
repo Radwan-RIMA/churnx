@@ -105,6 +105,36 @@ def preprocess_csv(df_raw, scaler, feature_names):
     return scaler.transform(df), df
 
 
+# Rendering every customerID as an <option> is what makes the dropdown feel
+# unresponsive on datasets with thousands of rows (the widget isn't virtualized,
+# so a click has to build the whole list in the DOM before it opens). Filtering
+# down with a search box first keeps that list small.
+MAX_UNFILTERED_OPTIONS = 500
+
+
+def customer_selectbox(label, df_results, key):
+    all_ids = df_results['customerID'].tolist()
+    search = st.text_input(
+        "Search customer ID",
+        key=f"{key}_search",
+        placeholder=f"Type to filter {len(all_ids):,} customers...",
+    )
+    if search:
+        ids = [c for c in all_ids if search.lower() in str(c).lower()]
+        if not ids:
+            st.warning(f"No customers match '{search}'.")
+            st.stop()
+    elif len(all_ids) > MAX_UNFILTERED_OPTIONS:
+        st.caption(
+            f"Showing first {MAX_UNFILTERED_OPTIONS:,} of {len(all_ids):,} customers — "
+            "search above to reach the rest."
+        )
+        ids = all_ids[:MAX_UNFILTERED_OPTIONS]
+    else:
+        ids = all_ids
+    return st.selectbox(label, ids, key=key)
+
+
 def risk_label(prob):
     if prob >= 0.7:   return "🔴 High"
     elif prob >= 0.4: return "🟡 Medium"
@@ -335,7 +365,7 @@ def main_app():
             st.warning("Please upload a CSV file first.")
             return
 
-        selected_id = st.selectbox("Select a customer", df_results['customerID'].tolist())
+        selected_id = customer_selectbox("Select a customer", df_results, key="lookup_customer")
         idx  = df_results.index[df_results['customerID'] == selected_id].tolist()[0]
         prob = probs[idx]
 
@@ -385,7 +415,7 @@ def main_app():
 
         col_sel, col_risk = st.columns([3, 1])
         with col_sel:
-            selected_id = st.selectbox("Select a customer", df_results['customerID'].tolist())
+            selected_id = customer_selectbox("Select a customer", df_results, key="copilot_customer")
         idx  = df_results.index[df_results['customerID'] == selected_id].tolist()[0]
         prob = probs[idx]
 
@@ -496,7 +526,7 @@ Be specific. Use the actual numbers. Do not be generic."""
             st.warning("Please upload a CSV file first.")
             return
 
-        selected_id   = st.selectbox("Select a customer to simulate", df_results['customerID'].tolist())
+        selected_id   = customer_selectbox("Select a customer to simulate", df_results, key="whatif_customer")
         idx           = df_results.index[df_results['customerID'] == selected_id].tolist()[0]
         original_prob = probs[idx]
 
