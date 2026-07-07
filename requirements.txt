@@ -1,8 +1,8 @@
 pandas
 numpy
 scikit-learn
-xgboost
-shap
+xgboost==2.0.3
+shap==0.44.1
 imbalanced-learn
 streamlit
 optuna
